@@ -1,0 +1,257 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel MCQ Quiz</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.0.1/exceljs.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 50px;
+            text-align: center;
+        }
+        .menu-container {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            display: flex;
+            gap: 20px;
+        }
+        .question-container {
+            border: 1px solid #ccc;
+            padding: 20px;
+            width: 90%;
+            max-width: 600px;
+            margin: auto;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+            display: none;
+        }
+        .options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px;
+            cursor: pointer;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            font-size: 16px;
+            border-radius: 6px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #level-buttons {
+            margin-top: 50px;
+        }
+        #loading-popup {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            display: none;
+        }
+        #navigation-buttons {
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+
+
+    <h1>Excel MCQ Quiz</h1>
+
+
+    <!-- Technology Selection Menu -->
+    <div class="menu-container">
+        <button onclick="selectTechnology('Informatica')">Informatica</button>
+        <button onclick="selectTechnology('Tableau')">Tableau</button>
+    </div>
+
+
+    <!-- Level Selection -->
+    <div id="level-buttons" style="display: none;">
+        <button onclick="selectLevel(1)">Level 1 (1-100)</button>
+        <button onclick="selectLevel(2)">Level 2 (101-200)</button>
+        <button onclick="selectLevel(3)">Level 3 (201-300)</button>
+    </div>
+
+
+    <!-- Loading Popup -->
+    <div id="loading-popup">Loading Quiz...</div>
+
+
+    <!-- Question and Options -->
+    <div class="question-container">
+        <p id="question-text"></p>
+        <div class="options" id="options-container"></div>
+
+
+        <!-- Navigation Buttons -->
+        <div id="navigation-buttons" style="display: none;">
+            <button id="back-button" onclick="navigateQuestion('back')">Back</button>
+            <button id="next-button" onclick="navigateQuestion('next')">Next</button>
+        </div>
+    </div>
+
+
+    <script>
+        let questions = [];
+        let currentQuestionIndex = 0;
+        let selectedTechnology = "";
+        let selectedLevel = 1;
+        let currentFilteredQuestions = [];
+        
+        // Read Excel file
+        async function readExcelFile() {
+            const fileUrl = "https://raw.githubusercontent.com/rajeevs43/Excel-quiz/main/practice%20question%20mcq_NO1.xlsx";
+            try {
+                const response = await fetch(fileUrl);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch Excel file.');
+                }
+                const arrayBuffer = await response.arrayBuffer();
+                const data = new Uint8Array(arrayBuffer);
+                const workbook = new ExcelJS.Workbook();
+                await workbook.xlsx.load(data);
+
+
+                const worksheet = workbook.worksheets[0];
+                worksheet.eachRow((row, rowNumber) => {
+                    if (rowNumber > 1) {
+                        questions.push({
+                            question: row.getCell(2).value,
+                            options: [
+                                row.getCell(3).value,
+                                row.getCell(4).value,
+                                row.getCell(5).value,
+                                row.getCell(6).value
+                            ],
+                            correctAnswer: row.getCell(7).value,
+                            technology: rowNumber <= 300 ? "Informatica" : "Tableau", // First 300 Informatica, after that Tableau
+                        });
+                    }
+                });
+            } catch (error) {
+                console.error("Error reading the Excel file:", error);
+                alert("An error occurred while loading the quiz. Please try again.");
+            }
+        }
+
+
+        // Select Technology (Informatica or Tableau)
+        function selectTechnology(tech) {
+            selectedTechnology = tech;
+            document.getElementById('level-buttons').style.display = 'block'; // Show level selection buttons
+            hidePopup(); // Hide loading popup once technology is selected
+        }
+
+
+        // Select Level (1, 2, or 3)
+        function selectLevel(level) {
+            selectedLevel = level;
+            currentFilteredQuestions = getFilteredQuestions();
+            showPopup(); // Show loading popup before displaying questions
+            loadQuestion();
+        }
+
+
+        // Filter questions based on selected technology and level
+        function getFilteredQuestions() {
+            const start = (selectedLevel - 1) * 100;
+            const end = selectedLevel * 100;
+
+
+            return questions.filter(q => q.technology === selectedTechnology).slice(start, end);
+        }
+
+
+        // Load Question
+        function loadQuestion() {
+            if (currentQuestionIndex >= currentFilteredQuestions.length) {
+                alert("Quiz Completed!");
+                return;
+            }
+
+
+            const questionEl = document.getElementById("question-text");
+            const optionsContainer = document.getElementById("options-container");
+            const currentQuestion = currentFilteredQuestions[currentQuestionIndex];
+
+
+            questionEl.textContent = currentQuestion.question;
+            optionsContainer.innerHTML = "";
+
+
+            currentQuestion.options.forEach(option => {
+                const button = document.createElement("button");
+                button.textContent = option;
+                button.onclick = () => checkAnswer(option);
+                optionsContainer.appendChild(button);
+            });
+
+
+            // Show navigation buttons
+            document.getElementById("navigation-buttons").style.display = "flex";
+        }
+
+
+        // Check Answer
+        function checkAnswer(selectedOption) {
+            const correctAnswer = currentFilteredQuestions[currentQuestionIndex].correctAnswer;
+            if (selectedOption === correctAnswer) {
+                alert("Correct! Moving to next question.");
+            } else {
+                alert(`Incorrect! The correct answer was: ${correctAnswer}`);
+            }
+            navigateQuestion('next'); // Automatically move to the next question after answering
+        }
+
+
+        // Navigate Questions
+        function navigateQuestion(direction) {
+            if (direction === 'next') {
+                currentQuestionIndex++;
+                if (currentQuestionIndex >= currentFilteredQuestions.length) {
+                    alert("You've completed the quiz!");
+                    return;
+                }
+            } else if (direction === 'back') {
+                currentQuestionIndex = Math.max(0, currentQuestionIndex - 1);
+            }
+
+
+            loadQuestion();
+        }
+
+
+        // Show Loading Popup
+        function showPopup() {
+            document.getElementById('loading-popup').style.display = 'block';
+        }
+
+
+        // Hide Loading Popup
+        function hidePopup() {
+            document.getElementById('loading-popup').style.display = 'none';
+        }
+
+
+        // Initialize
+        readExcelFile();
+    </script>
+
+
+</body>
+</html>
