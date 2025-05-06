@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel MCQ Quiz</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.0.1/exceljs.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 50px;
+            text-align: center;
+        }
+        #score-bar {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background-color: lightblue;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .menu-container {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            cursor: pointer;
+        }
+        .menu-icon {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .bar {
+            width: 30px;
+            height: 5px;
+            background-color: black;
+            border-radius: 3px;
+        }
+        .menu-list {
+            display: none;
+            list-style-type: none;
+            padding: 10px;
+            background-color: lightgray;
+            position: absolute;
+            top: 40px;
+            left: 0;
+            border-radius: 5px;
+        }
+        .menu-list li {
+            padding: 5px;
+            cursor: pointer;
+        }
+        .menu-list li:hover {
+            background-color: gray;
+            color: white;
+        }
+        #level-buttons {
+            display: none;
+            margin-top: 20px;
+        }
+        .question-container {
+            border: 1px solid #ccc;
+            padding: 20px;
+            width: 90%;
+            max-width: 600px;
+            margin: auto;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+            display: none;
+        }
+        .options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px;
+            cursor: pointer;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            font-size: 16px;
+            border-radius: 6px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #navigation-buttons {
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Wings MCQ Quiz</h1>
+
+    <div id="score-bar">
+        Correct Answers: <span id="correct-count">0</span>
+    </div>
+
+    <div class="menu-container">
+        <div class="menu-icon" onclick="toggleMenu()">
+            <div class="bar"></div>
+            <div class="bar"></div>
+            <div class="bar"></div>
+        </div>
+        <ul class="menu-list" id="menuList">
+            <li onclick="selectTechnology('Informatica')">Informatica</li>
+            <li onclick="selectTechnology('Tableau')">Tableau</li>
+        </ul>
+    </div>
+
+    <div id="level-buttons">
+        <button onclick="selectLevel(1)">Level 1</button>
+        <button onclick="selectLevel(2)">Level 2</button>
+        <button onclick="selectLevel(3)">Level 3</button>
+    </div>
+
+    <div class="question-container">
+        <p id="question-text"></p>
+        <div class="options" id="options-container"></div>
+
+        <div id="navigation-buttons">
+            <button id="back-button" onclick="navigateQuestion('back')">Back</button>
+            <button id="next-button" onclick="navigateQuestion('next')">Next</button>
+            <button id="next-10-button" onclick="navigateQuestion('next10')">Next 10</button> <!-- Next 10 button -->
+        </div>
+    </div>
+
+    <script>
+        let CorrectAns = 0;
+        let questions = [];
+        let currentQuestionIndex = 0;
+        let selectedTechnology = "";
+        let selectedLevel = 1;
+        let currentFilteredQuestions = [];
+
+        document.getElementById("correct-count").textContent = CorrectAns;
+
+        function toggleMenu() {
+            const menu = document.getElementById("menuList");
+            menu.style.display = menu.style.display === "block" ? "none" : "block";
+        }
+
+        async function readExcelFile() {
+            const fileUrl = "https://raw.githubusercontent.com/rajeevs43/Excel-quiz/main/practice%20question%20mcq_NO1.xlsx";
+            try {
+                const response = await fetch(fileUrl);
+                if (!response.ok) throw new Error('Failed to fetch Excel file.');
+
+                const arrayBuffer = await response.arrayBuffer();
+                const workbook = new ExcelJS.Workbook();
+                await workbook.xlsx.load(arrayBuffer);
+
+                const worksheet = workbook.worksheets[0];
+
+                worksheet.eachRow((row, rowNumber) => {
+                    if (rowNumber > 1) {
+                        questions.push({
+                            question: row.getCell(2).value,
+                            options: [
+                                row.getCell(3).value,
+                                row.getCell(4).value,
+                                row.getCell(5).value,
+                                row.getCell(6).value
+                            ],
+                            correctAnswer: row.getCell(7).value,
+                            technology: rowNumber <= 300 ? "Informatica" : "Tableau",
+                            level: Math.ceil(rowNumber / 100)
+                        });
+                    }
+                });
+
+                console.log("Loaded Questions:", questions.length);
+            } catch (error) {
+                console.error("Error reading Excel:", error);
+                alert("Error loading quiz. Please try again.");
+            }
+        }
+
+        function selectTechnology(tech) {
+            selectedTechnology = tech;
+            document.getElementById("level-buttons").style.display = "block";
+        }
+
+        function selectLevel(level) {
+            selectedLevel = level;
+            currentFilteredQuestions = getFilteredQuestions();
+            currentQuestionIndex = 0; // Reset question index for new level
+            loadQuestion();
+        }
+
+        function getFilteredQuestions() {
+            return questions.filter(q => q.technology === selectedTechnology && q.level === selectedLevel);
+        }
+
+        function loadQuestion() {
+            if (currentQuestionIndex >= currentFilteredQuestions.length) {
+                alert(`Quiz Completed! You answered ${CorrectAns} questions correctly.`);
+                return;
+            }
+
+            document.querySelector(".question-container").style.display = "block";
+            const questionEl = document.getElementById("question-text");
+            const optionsContainer = document.getElementById("options-container");
+            const currentQuestion = currentFilteredQuestions[currentQuestionIndex];
+
+            // Display the question number before the question text
+            questionEl.textContent = `Question #${currentQuestionIndex + 1}: ${currentQuestion.question}`;
+            optionsContainer.innerHTML = "";
+
+            // Display only the correct answer
+            const button = document.createElement("button");
+            button.textContent = currentQuestion.correctAnswer;
+            button.onclick = () => checkAnswer(currentQuestion.correctAnswer);
+            optionsContainer.appendChild(button);
+
+            document.getElementById("navigation-buttons").style.display = "flex";
+        }
+
+        function checkAnswer(selectedOption) {
+            const correctAnswer = currentFilteredQuestions[currentQuestionIndex].correctAnswer;
+            if (selectedOption === correctAnswer) {
+                CorrectAns++;
+                document.getElementById("correct-count").textContent = CorrectAns;
+                alert("Correct! Well done.");
+            } else {
+                alert("Wrong answer! Try again.");
+            }
+            navigateQuestion('next');
+        }
+
+        function navigateQuestion(direction) {
+            if (direction === 'next') currentQuestionIndex++;
+            if (direction === 'back') currentQuestionIndex = Math.max(0, currentQuestionIndex - 1);
+            if (direction === 'next10') currentQuestionIndex = Math.min(currentFilteredQuestions.length - 1, currentQuestionIndex + 10); // Skip 10 questions
+            loadQuestion();
+        }
+
+        readExcelFile();
+    </script>
+</body>
+</html>
