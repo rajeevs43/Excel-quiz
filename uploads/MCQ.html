@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCQ Exam</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.0.1/exceljs.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f4f4f4;
+        }
+        #exam-container {
+            display: flex;
+            justify-content: space-between;
+            width: 80%;
+            max-width: 1000px;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+        #question-container {
+            flex: 0 0 70%;
+        }
+        #right-panel {
+            flex: 0 0 25%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        #timer {
+            font-size: 20px;
+            font-weight: bold;
+        }
+        #question-status {
+            list-style: none;
+            padding: 0;
+        }
+        #question-status li {
+            padding: 8px;
+            margin: 5px;
+            display: inline-block;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        #question-status li.answered {
+            background-color: green;
+            color: white;
+        }
+        #question-status li.skipped {
+            background-color: yellow;
+            color: black;
+        }
+        #question-status li.unattempted {
+            background-color: gray;
+            color: white;
+        }
+        button {
+            padding: 10px;
+            cursor: pointer;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            font-size: 16px;
+            border-radius: 6px;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .question-container {
+            border: 1px solid #ccc;
+            padding: 20px;
+            width: 90%;
+            max-width: 600px;
+            margin: auto;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+            display: none;
+        }
+        .options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .options button.selected {
+            background-color: #28a745; /* Green for selected answer */
+        }
+        #navigation-buttons {
+            margin-top: 20px;
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+        }
+        .popup {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            z-index: 9999;
+            text-align: center;
+        }
+        .popup button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .popup button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+
+<div id="exam-container">
+    <!-- Main Question Display -->
+    <div id="question-container">
+        <h3 id="question-text"></h3>
+        <div id="options-container" class="options"></div>
+        <div id="navigation-buttons">
+            <button id="back-button" onclick="navigateQuestion('back')">Back</button>
+            <button id="next-button" onclick="navigateQuestion('next')">Next</button>
+        </div>
+    </div>
+
+    <!-- Right Panel -->
+    <div id="right-panel">
+        <div id="timer">Time Left: <span id="time-left"></span></div>
+        <div id="progress-tracker">
+            <h3>Questions Status</h3>
+            <ul id="question-status">
+                <!-- Status for each question -->
+            </ul>
+        </div>
+        <button id="submit-btn" onclick="submitExam()">Submit Exam</button>
+    </div>
+</div>
+
+<!-- Pop-up for skipped question -->
+<div class="popup" id="popup">
+    <p>You have skipped this question. Please select an answer before proceeding!</p>
+    <button onclick="closePopup()">OK</button>
+</div>
+
+<script>
+    let questions = [];
+    let currentQuestionIndex = 0;
+    let questionStatus = [];
+    let timer;
+    let timeLeft = 60 * 60; // 1 hour in seconds
+    let timerRunning = false;
+
+    // Load questions from Excel
+    async function loadQuestionsFromExcel() {
+        const fileUrl = "https://raw.githubusercontent.com/rajeevs43/Excel-quiz/main/practice%20question%20mcq_NO1.xlsx"; // URL of your Excel file
+
+        try {
+            const response = await fetch(fileUrl);
+            if (!response.ok) throw new Error('Failed to fetch Excel file.');
+
+            const arrayBuffer = await response.arrayBuffer();
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.load(arrayBuffer);
+            const worksheet = workbook.worksheets[0];
+            questions = [];
+
+            // Extract 40 random questions from the Excel sheet
+            worksheet.eachRow((row, rowNumber) => {
+                if (rowNumber > 1 && questions.length < 40) {
+                    questions.push({
+                        question: row.getCell(2).value,
+                        options: [
+                            row.getCell(3).value,
+                            row.getCell(4).value,
+                            row.getCell(5).value,
+                            row.getCell(6).value
+                        ],
+                        correctAnswer: row.getCell(7).value,
+                    });
+                }
+            });
+
+            // Shuffle questions to ensure random order
+            questions = shuffleArray(questions);
+
+            questionStatus = new Array(40).fill("unattempted");
+            displayQuestion(currentQuestionIndex);
+            updateProgressTracker(); // Initial call to update the progress tracker
+        } catch (error) {
+            console.error("Error loading questions from Excel:", error);
+        }
+    }
+
+    // Shuffle array function to randomize question order
+    function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]]; // Swap elements
+        }
+        return array;
+    }
+
+    // Display the current question and options
+    function displayQuestion(index) {
+        if (index < 0 || index >= questions.length) return;
+
+        const currentQuestion = questions[index];
+        document.getElementById("question-text").textContent = `${index + 1}. ${currentQuestion.question}`;
+        const optionsContainer = document.getElementById("options-container");
+        optionsContainer.innerHTML = '';
+
+        currentQuestion.options.forEach((option) => {
+            const button = document.createElement("button");
+            button.textContent = option;
+            button.onclick = () => selectAnswer(option, button);
+            optionsContainer.appendChild(button);
+        });
+
+        document.querySelector(".question-container").style.display = "block";
+        updateProgressTracker(); // Update progress tracker after displaying the question
+    }
+
+    // Select an answer and update the button's color
+    function selectAnswer(option, button) {
+        button.style.backgroundColor = "#28a745";  // Green for selected answer (whether correct or incorrect)
+        questionStatus[currentQuestionIndex] = "answered";  // Mark as answered
+        updateProgressTracker(); // Update the progress tracker after an answer is selected
+    }
+
+    // Update the progress tracker (left side question status)
+    function updateProgressTracker() {
+        const questionList = document.getElementById("question-status");
+        questionList.innerHTML = '';
+        questionStatus.forEach((status, index) => {
+            const li = document.createElement("li");
+            li.textContent = index + 1;
+            li.classList.add(status);
+
+            // Make each question clickable
+            li.onclick = () => jumpToQuestion(index);
+
+            questionList.appendChild(li);
+        });
+    }
+
+    // Navigate to next/previous question
+    function navigateQuestion(direction) {
+        if (direction === 'next' && currentQuestionIndex < questions.length - 1) {
+            // If the question is not answered, mark it as skipped
+            if (questionStatus[currentQuestionIndex] === "viewed") {
+                questionStatus[currentQuestionIndex] = "skipped";
+            }
+            currentQuestionIndex++;
+        } else if (direction === 'back' && currentQuestionIndex > 0) {
+            currentQuestionIndex--;
+        }
+
+        displayQuestion(currentQuestionIndex);
+    }
+
+    // Timer setup and countdown
+    function startTimer() {
+        timer = setInterval(() => {
+            if (timeLeft <= 0) {
+                clearInterval(timer);
+                alert("Time's up!");
+                return;
+            }
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            document.getElementById("time-left").textContent = `${minutes}:${seconds}`;
+            timeLeft--;
+        }, 1000);
+    }
+
+    // Start the exam
+    function startExam() {
+        loadQuestionsFromExcel();
+        startTimer();
+    }
+
+    // Submit exam (display results)
+    function submitExam() {
+        alert("Exam submitted. Your results will be shown.");
+        // Add logic here to display results, e.g., score calculation.
+    }
+
+    // Jump to a specific question
+    function jumpToQuestion(index) {
+        currentQuestionIndex = index;
+        displayQuestion(currentQuestionIndex);
+    }
+
+    // Close pop-up
+    function closePopup() {
+        document.getElementById("popup").style.display = "none";
+    }
+
+    // Start exam
+    startExam();
+</script>
+
+</body>
+</html>
